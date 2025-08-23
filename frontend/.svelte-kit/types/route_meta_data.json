@@ -1,0 +1,24 @@
+{
+	"/": [
+		"src/routes/+layout.ts",
+		"src/routes/+layout.ts"
+	],
+	"/api/messages": [
+		"src/routes/api/messages/+server.js"
+	],
+	"/chat": [
+		"src/routes/+layout.ts"
+	],
+	"/contacts": [
+		"src/routes/+layout.ts"
+	],
+	"/database": [
+		"src/routes/+layout.ts"
+	],
+	"/groups": [
+		"src/routes/+layout.ts"
+	],
+	"/settings": [
+		"src/routes/+layout.ts"
+	]
+}

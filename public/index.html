@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WhatsApp Group Creator</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+
+<body>
+  <div class="container">
+    <header>
+      <h1>🤖 WhatsApp Group Creator</h1>
+      <p>Create WhatsApp groups using whatsapp-web.js</p>
+    </header>
+
+    <!-- Status Section -->
+    <div class="status-section">
+      <h2>WhatsApp Status</h2>
+      <div id="status-display" class="status-display">
+        <div class="status-item">
+          <span class="status-label">Status:</span>
+          <span id="client-status" class="status-value">Disconnected</span>
+        </div>
+        <div id="qr-container" class="qr-container" style="display: none;">
+          <h3>Scan QR Code with WhatsApp</h3>
+          <img id="qr-code" alt="QR Code">
+          <p>Open WhatsApp on your phone → Menu → WhatsApp Web → Scan this code</p>
+        </div>
+      </div>
+      <button id="start-btn" class="btn btn-primary">Start WhatsApp Client</button>
+    </div>
+
+    <!-- Group Creation Section -->
+    <div class="group-section">
+      <h2>Create New Group</h2>
+      <form id="group-form">
+        <div class="form-group">
+          <label for="group-title">Group Title:</label>
+          <input type="text" id="group-title" placeholder="Enter group title" required>
+        </div>
+
+        <div class="form-group">
+          <label for="participants">Participants (Phone Numbers):</label>
+          <div class="participants-container">
+            <div class="participant-input">
+              <input type="tel" class="participant-phone" placeholder="Phone number (9-15 digits)" pattern="[0-9]{9,15}"
+                required>
+              <button type="button" class="remove-participant" style="display: none;">Remove</button>
+            </div>
+          </div>
+          <button type="button" id="add-participant" class="btn btn-secondary">+ Add Participant</button>
+        </div>
+
+        <button type="submit" id="create-group-btn" class="btn btn-success" disabled>
+          Create Group
+        </button>
+      </form>
+    </div>
+
+    <!-- Results Section -->
+    <div class="results-section">
+      <h2>Results</h2>
+      <div id="results-display" class="results-display">
+        <p class="placeholder">Group creation results will appear here...</p>
+      </div>
+    </div>
+
+    <!-- Send Message Section -->
+    <div class="message-section">
+      <h2>Send Message</h2>
+      <form id="message-form">
+        <div class="form-group">
+          <label for="message-type">Message Type:</label>
+          <select id="message-type" required>
+            <option value="individual">Individual Recipient</option>
+            <option value="group">Group Chat</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="recipient">Recipient:</label>
+          <div id="recipient-container">
+            <input type="tel" id="recipient-phone" placeholder="Phone number (9-15 digits)" pattern="[0-9]{9,15}"
+              required>
+            <select id="recipient-group" style="display: none;">
+              <option value="">Select a group...</option>
+            </select>
+          </div>
+          <button type="button" id="load-groups-btn" class="btn btn-secondary" style="display: none;">Load
+            Groups</button>
+        </div>
+
+        <div class="form-group">
+          <label for="message-text">Message:</label>
+          <textarea id="message-text" placeholder="Type your message here..." rows="4" required></textarea>
+        </div>
+
+        <button type="submit" id="send-message-btn" class="btn btn-primary" disabled>
+          Send Message
+        </button>
+      </form>
+    </div>
+
+    <!-- Incoming Messages Section -->
+    <div class="incoming-messages-section">
+      <h2>Incoming Messages</h2>
+      <div class="incoming-controls">
+        <button id="clear-messages-btn" class="btn btn-secondary">Clear Messages</button>
+        <button id="export-messages-btn" class="btn btn-secondary">Export Messages</button>
+      </div>
+      <div id="incoming-messages-display" class="incoming-messages-display">
+        <p class="placeholder">Incoming messages will appear here in real-time...</p>
+      </div>
+    </div>
+
+    <!-- Message Processing Section -->
+    <div class="processing-section">
+      <h2>Message Processing</h2>
+      <div class="processing-controls">
+        <button id="test-message-btn" class="btn btn-info">Test Message Processing</button>
+        <button id="view-processors-btn" class="btn btn-info">View Available Processors</button>
+      </div>
+      <div id="processing-results" class="processing-results">
+        <p class="placeholder">Message processing results will appear here...</p>
+      </div>
+    </div>
+
+    <!-- MongoDB Dashboard Section -->
+    <div class="mongodb-dashboard-section">
+      <h2>📊 MongoDB Dashboard</h2>
+
+      <!-- Connection Status -->
+      <div class="connection-status">
+        <h3>Database Status</h3>
+        <div id="db-status" class="db-status">
+          <p class="placeholder">Checking database connection...</p>
+        </div>
+        <button id="test-db-connection-btn" class="btn btn-info">Test Connection</button>
+      </div>
+
+      <!-- Message Statistics -->
+      <div class="message-statistics">
+        <h3>Message Statistics</h3>
+        <div id="message-stats" class="message-stats">
+          <p class="placeholder">Loading statistics...</p>
+        </div>
+        <button id="refresh-stats-btn" class="btn btn-secondary">Refresh Stats</button>
+      </div>
+
+      <!-- Message Search -->
+      <div class="message-search">
+        <h3>Search Messages</h3>
+        <form id="message-search-form">
+          <div class="search-filters">
+            <div class="form-group">
+              <label for="search-direction">Direction:</label>
+              <select id="search-direction">
+                <option value="">All</option>
+                <option value="sent">Sent</option>
+                <option value="received">Received</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="search-type">Type:</label>
+              <select id="search-type">
+                <option value="">All</option>
+                <option value="text">Text</option>
+                <option value="image">Image</option>
+                <option value="video">Video</option>
+                <option value="audio">Audio</option>
+                <option value="document">Document</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="search-text">Search Text:</label>
+              <input type="text" id="search-text" placeholder="Search in message content...">
+            </div>
+            <div class="form-group">
+              <label for="search-limit">Limit:</label>
+              <input type="number" id="search-limit" value="50" min="1" max="1000">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary">Search Messages</button>
+        </form>
+      </div>
+
+      <!-- Search Results -->
+      <div class="search-results">
+        <h3>Search Results</h3>
+        <div class="search-controls">
+          <button id="export-search-results-btn" class="btn btn-success">Export Results</button>
+          <button id="clear-search-btn" class="btn btn-secondary">Clear Results</button>
+        </div>
+        <div id="search-results-display" class="search-results-display">
+          <p class="placeholder">Search results will appear here...</p>
+        </div>
+      </div>
+
+      <!-- Recent Messages -->
+      <div class="recent-messages">
+        <h3>Recent Messages</h3>
+        <div class="recent-controls">
+          <button id="load-recent-messages-btn" class="btn btn-secondary">Load Recent</button>
+          <button id="export-recent-messages-btn" class="btn btn-success">Export Recent</button>
+        </div>
+        <div id="recent-messages-display" class="recent-messages-display">
+          <p class="placeholder">Recent messages will appear here...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Send Button Message Section -->
+    <div class="button-message-section">
+      <h2>Send Button Message</h2>
+      <form id="button-message-form">
+        <div class="form-group">
+          <label for="button-message-type">Message Type:</label>
+          <select id="button-message-type" required>
+            <option value="individual">Individual Recipient</option>
+            <option value="group">Group Chat</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="button-recipient">Recipient:</label>
+          <div id="button-recipient-container">
+            <input type="tel" id="button-recipient-phone" placeholder="Phone number (9-15 digits)" pattern="[0-9]{9,15}"
+              required>
+            <select id="button-recipient-group" style="display: none;">
+              <option value="">Select a group...</option>
+            </select>
+          </div>
+          <button type="button" id="button-load-groups-btn" class="btn btn-secondary" style="display: none;">Load
+            Groups</button>
+        </div>
+
+        <div class="form-group">
+          <label for="button-body">Message Body:</label>
+          <textarea id="button-body" placeholder="Type your message body here..." rows="3" required></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="button-title">Button Title (Optional):</label>
+          <input type="text" id="button-title" placeholder="Enter button title...">
+        </div>
+
+        <div class="form-group">
+          <label for="button-footer">Footer (Optional):</label>
+          <input type="text" id="button-footer" placeholder="Enter footer text...">
+        </div>
+
+        <div class="form-group">
+          <label>Buttons (Max 3):</label>
+          <div id="buttons-container">
+            <div class="button-input">
+              <input type="text" class="button-id" placeholder="Button ID (e.g., btn1)" required>
+              <input type="text" class="button-body" placeholder="Button Text (e.g., Click Me)" required>
+              <button type="button" class="remove-button" style="display: none;">Remove</button>
+            </div>
+          </div>
+          <button type="button" id="add-button" class="btn btn-secondary">+ Add Button</button>
+        </div>
+
+        <button type="submit" id="send-button-message-btn" class="btn btn-primary">
+          Send Button Message
+        </button>
+      </form>
+    </div>
+
+    <!-- Contacts Section -->
+    <div class="contacts-section">
+      <h2>Your Contacts</h2>
+      <button id="load-contacts-btn" class="btn btn-secondary">Load Contacts</button>
+      <div id="contacts-display" class="contacts-display">
+        <p class="placeholder">Click "Load Contacts" to see your WhatsApp contacts...</p>
+      </div>
+    </div>
+
+    <!-- Groups Section -->
+    <div class="groups-section">
+      <h2>Your Groups</h2>
+      <button id="load-groups-display-btn" class="btn btn-secondary">Load Groups</button>
+      <div id="groups-display" class="groups-display">
+        <p class="placeholder">Click "Load Groups" to see your WhatsApp groups...</p>
+      </div>
+
+      <!-- Group Settings Section -->
+      <div class="group-settings-section">
+        <h3>Group Settings</h3>
+        <div class="form-group">
+          <label for="group-settings-select">Select Group:</label>
+          <select id="group-settings-select">
+            <option value="">Choose a group...</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="allow-everyone-messages" checked>
+            Allow everyone to send messages
+          </label>
+        </div>
+        <button id="update-group-settings-btn" class="btn btn-primary" disabled>
+          Update Group Settings
+        </button>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+
+</html>

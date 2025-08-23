@@ -1,0 +1,27 @@
+{
+	"/": [
+		"src/routes/+layout.ts",
+		"src/routes/+layout.ts"
+	],
+	"/api/contacts": [
+		"src/routes/api/contacts/+server.js"
+	],
+	"/api/messages": [
+		"src/routes/api/messages/+server.js"
+	],
+	"/api/whatsapp/send-message": [
+		"src/routes/api/whatsapp/send-message/+server.js"
+	],
+	"/chat": [
+		"src/routes/+layout.ts"
+	],
+	"/database": [
+		"src/routes/+layout.ts"
+	],
+	"/groups": [
+		"src/routes/+layout.ts"
+	],
+	"/settings": [
+		"src/routes/+layout.ts"
+	]
+}

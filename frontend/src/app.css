@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles for chat portal */
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
+
+@layer components {
+
+  /* Chat message styles */
+  .chat-message-user {
+    @apply bg-blue-500 text-white rounded-2xl rounded-br-md px-4 py-2 max-w-xs lg:max-w-md;
+  }
+
+  .chat-message-agent {
+    @apply bg-gray-100 text-gray-800 rounded-2xl rounded-bl-md px-4 py-2 max-w-xs lg:max-w-md;
+  }
+
+  /* Chat sidebar styles */
+  .chat-sidebar {
+    @apply bg-white border-r border-gray-200 w-80 flex-shrink-0 h-full flex flex-col;
+  }
+
+  /* Chat input styles */
+  .chat-input {
+    @apply bg-white border-t border-gray-200 p-4;
+  }
+
+  /* Minimal spacing for customer service */
+  .chat-container {
+    @apply h-full flex flex-row;
+  }
+
+  .chat-messages {
+    @apply flex-1 overflow-y-auto p-4 space-y-3;
+  }
+
+  .chat-header {
+    @apply bg-white border-b border-gray-200 px-4 py-3;
+  }
+}
+
+/* Custom scrollbar for chat */
+.chat-messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
