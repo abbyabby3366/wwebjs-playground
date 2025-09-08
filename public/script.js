@@ -203,6 +203,7 @@ class WhatsAppGroupCreator {
     const qrContainer = document.getElementById('qr-container');
     const qrImage = document.getElementById('qr-code');
     const createGroupBtn = document.getElementById('create-group-btn');
+    const sendMessageBtn = document.getElementById('send-message-btn');
 
     // Update status text and class
     statusElement.textContent = data.status.replace('_', ' ').toUpperCase();
@@ -216,8 +217,10 @@ class WhatsAppGroupCreator {
       qrContainer.style.display = 'none';
     }
 
-    // Enable/disable create group button
-    createGroupBtn.disabled = data.status !== 'ready';
+    // Enable/disable buttons when WhatsApp client is ready
+    const isReady = data.status === 'ready';
+    createGroupBtn.disabled = !isReady;
+    sendMessageBtn.disabled = !isReady;
   }
 
   addParticipantInput() {

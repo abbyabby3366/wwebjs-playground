@@ -42,6 +42,15 @@
             Groups
           </a>
           <a
+            href="/contacts"
+            class="text-gray-900 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium {$page
+              .url.pathname === '/contacts'
+              ? 'text-blue-600'
+              : ''}"
+          >
+            Contacts
+          </a>
+          <a
             href="/database"
             class="text-gray-900 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium {$page
               .url.pathname === '/database'

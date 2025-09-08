@@ -20,17 +20,12 @@
     @apply bg-gray-100 text-gray-800 rounded-2xl rounded-bl-md px-4 py-2 max-w-xs lg:max-w-md;
   }
 
-  /* Chat sidebar styles */
-  .chat-sidebar {
-    @apply bg-white border-r border-gray-200 w-80 flex-shrink-0 h-full flex flex-col;
-  }
-
   /* Chat input styles */
   .chat-input {
     @apply bg-white border-t border-gray-200 p-4;
   }
 
-  /* Minimal spacing for customer service */
+  /* Three-column layout for chat */
   .chat-container {
     @apply h-full flex flex-row;
   }

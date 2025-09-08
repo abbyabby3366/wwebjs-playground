@@ -17,6 +17,10 @@
     participants: [""],
   };
   let showContactManagerModal = false;
+  let showRightPanel = false; // Control right panel visibility on mobile
+  let selectedParticipant = null; // Track selected participant for detailed view
+  let showContactDetailsModal = false; // New modal for contact details
+  let selectedContactForDetails = null; // Contact to show details for
 
   // Contact management
   let contactsList = [];
@@ -187,6 +191,9 @@
 
         // Update contacts list with new message info
         updateContactWithNewMessage(newMessage);
+
+        // Refresh contact names in case they were updated
+        refreshContactNames();
       });
 
       socket.on("message_received", (data) => {
@@ -213,16 +220,28 @@
   async function startNewChat() {
     if (!newChatPhone.trim()) return;
 
+    // Use saved contact name if available, otherwise use provided name or phone
+    const savedContactName = getContactName(newChatPhone.trim());
+    const displayName =
+      savedContactName !== newChatPhone.trim()
+        ? savedContactName
+        : newChatName.trim() || newChatPhone;
+    const initials = displayName
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+
     const newContact = {
       id: Date.now(),
-      name: newChatName.trim() || newChatPhone,
+      name: displayName,
       phone: newChatPhone.trim(),
-      avatar: (newChatName.trim() || newChatPhone)
-        .substring(0, 2)
-        .toUpperCase(),
+      avatar: initials,
       status: "offline",
       lastMessage: "Start a new conversation",
       messageCount: 0,
+      type: "contact",
     };
 
     contacts = [newContact, ...contacts];
@@ -282,8 +301,13 @@
             );
 
             if (contactPhone && !contactMap.has(contactPhone)) {
-              const name = msg.pushname || contactPhone.replace(/\D/g, "");
-              const initials = name
+              // Use saved contact name if available, otherwise fallback to pushname or phone
+              const savedContactName = getContactName(contactPhone);
+              const displayName =
+                savedContactName !== contactPhone
+                  ? savedContactName
+                  : msg.pushname || contactPhone.replace(/\D/g, "");
+              const initials = displayName
                 .split(" ")
                 .map((n) => n[0])
                 .join("")
@@ -291,7 +315,7 @@
                 .slice(0, 2);
               const newContact = {
                 id: contactMap.size + 1,
-                name: name,
+                name: displayName,
                 phone: contactPhone,
                 avatar: initials,
                 status: "offline",
@@ -338,13 +362,16 @@
                 const groupContacts = groupsData.groups.map((group, index) => {
                   // Get participant names if available
                   let participantNames = [];
+                  let participantData = [];
                   if (group.participants && Array.isArray(group.participants)) {
-                    participantNames = group.participants.map((participant) => {
+                    participantData = group.participants.map((participant) => {
                       const phone = participant.id
                         ? participant.id.replace("@c.us", "")
                         : participant.replace("@c.us", "");
-                      return getContactName(phone);
+                      const name = getContactName(phone);
+                      return { phone, name, original: participant };
                     });
+                    participantNames = participantData.map((p) => p.name);
                   }
 
                   return {
@@ -363,6 +390,7 @@
                     participantsCount: group.participantsCount || 0,
                     participants: group.participants || [],
                     participantNames: participantNames,
+                    participantData: participantData, // Store the processed participant data
                   };
                 });
 
@@ -432,6 +460,10 @@
             if (!b.lastMessageTime) return -1; // Put contacts without time at the end
             return new Date(b.lastMessageTime) - new Date(a.lastMessageTime);
           });
+
+          // Refresh contact names from saved contacts
+          refreshContactNames();
+
           console.log(
             "Final contacts array with timestamps:",
             contacts.map((c) => ({
@@ -706,6 +738,13 @@
   async function selectContact(contact) {
     console.log("Selecting contact:", contact);
     selectedContact = contact;
+    // Reset participant selection when selecting a new contact
+    selectedParticipant = null;
+    // Auto-show right panel on mobile when contact is selected
+    if (window.innerWidth < 1024) {
+      // lg breakpoint
+      showRightPanel = true;
+    }
     await loadMessages(contact.phone);
     scrollToBottom();
   }
@@ -914,6 +953,11 @@
       if (data.success) {
         contactsList = data.contacts || [];
         console.log("Contacts list loaded:", contactsList);
+
+        // Refresh contact names in the chat contacts list
+        if (contacts.length > 0) {
+          refreshContactNames();
+        }
       } else {
         console.error("Failed to load contacts:", data.error);
         contactsList = [];
@@ -1024,6 +1068,11 @@
     if (contact) return contact.name;
 
     // If no contact found, return formatted phone number
+    console.log(
+      "getContactName: No contact found for",
+      cleanPhone,
+      "returning phone as name",
+    );
     return cleanPhone;
   }
 
@@ -1084,11 +1133,24 @@
     // If this is a new contact, add them to the list
     const existingContact = contacts.find((c) => c.phone === messageContact);
     if (!existingContact) {
+      // Use saved contact name if available, otherwise fallback to phone number
+      const savedContactName = getContactName(messageContact);
+      const displayName =
+        savedContactName !== messageContact
+          ? savedContactName
+          : messageContact.replace(/\D/g, "");
+      const initials = displayName
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2);
+
       const newContact = {
         id: Date.now(),
-        name: messageContact.replace(/\D/g, ""),
+        name: displayName,
         phone: messageContact,
-        avatar: messageContact.substring(0, 2).toUpperCase(),
+        avatar: initials,
         status: "offline",
         lastMessage: newMessage.content,
         lastMessageTime: new Date(newMessage.timestamp),
@@ -1104,6 +1166,35 @@
     contacts = contacts.sort(
       (a, b) => new Date(b.lastMessageTime) - new Date(a.lastMessageTime),
     );
+  }
+
+  // Function to refresh contact names from saved contacts
+  function refreshContactNames() {
+    contacts = contacts.map((contact) => {
+      if (contact.type === "contact") {
+        const savedContactName = getContactName(contact.phone);
+        if (
+          savedContactName !== contact.phone &&
+          savedContactName !== contact.name
+        ) {
+          // Update the contact name and avatar
+          const initials = savedContactName
+            .split(" ")
+            .map((n) => n[0])
+            .join("")
+            .toUpperCase()
+            .slice(0, 2);
+
+          return {
+            ...contact,
+            name: savedContactName,
+            avatar: initials,
+          };
+        }
+      }
+      return contact;
+    });
+    console.log("Contact names refreshed from saved contacts");
   }
 
   // Manual refresh function for groups
@@ -1126,13 +1217,16 @@
         const groupContacts = groupsData.groups.map((group, index) => {
           // Get participant names if available
           let participantNames = [];
+          let participantData = [];
           if (group.participants && Array.isArray(group.participants)) {
-            participantNames = group.participants.map((participant) => {
+            participantData = group.participants.map((participant) => {
               const phone = participant.id
                 ? participant.id.replace("@c.us", "")
                 : participant.replace("@c.us", "");
-              return getContactName(phone);
+              const name = getContactName(phone);
+              return { phone, name, original: participant };
             });
+            participantNames = participantData.map((p) => p.name);
           }
 
           return {
@@ -1143,14 +1237,15 @@
             status: "online",
             lastMessage:
               participantNames.length > 0
-                ? `${participantNames.slice(0, 3).join(", ")}${participantNames.length > 3 ? "..." : ""}`
+                ? `${participantNames.length} participants`
                 : "Group chat",
-            lastMessageTime: new Date(),
-            messageCount: 0,
+            lastMessageTime: null, // Will be set to actual time if messages exist
+            messageCount: 0, // Will be updated below with actual group message count
             type: "group",
             participantsCount: group.participantsCount || 0,
             participants: group.participants || [],
             participantNames: participantNames,
+            participantData: participantData, // Store the processed participant data
           };
         });
 
@@ -1177,15 +1272,44 @@
       loading = false;
     }
   }
+
+  // Function to select a participant and show their details
+  function selectParticipant(participantPhone) {
+    // Clean the phone number (remove @c.us suffix if present)
+    const cleanPhone = participantPhone.replace("@c.us", "");
+
+    selectedParticipant = {
+      phone: cleanPhone,
+      name: getContactName(cleanPhone),
+      type: "contact",
+    };
+    // Always show right panel when participant is selected (both mobile and desktop)
+    showRightPanel = true;
+
+    console.log("Selected participant:", selectedParticipant);
+  }
+
+  // Function to go back to group view
+  function backToGroup() {
+    selectedParticipant = null;
+  }
+
+  // Function to show contact details
+  function showContactDetails(contact) {
+    selectedContactForDetails = contact;
+    showContactDetailsModal = true;
+  }
 </script>
 
 <svelte:head>
   <title>Chat - WhatsApp Chat Portal</title>
 </svelte:head>
 
-<div class="chat-container h-full flex">
-  <!-- Sidebar -->
-  <div class="chat-sidebar">
+<div class="chat-container h-full flex bg-gray-50">
+  <!-- Contacts Sidebar (Left) -->
+  <div
+    class="w-80 border-r border-gray-200 flex flex-col flex-shrink-0 bg-white shadow-sm"
+  >
     <!-- Sidebar Header -->
     <div class="p-4 border-b border-gray-200">
       <div class="flex items-center justify-between mb-2">
@@ -1266,6 +1390,12 @@
           disabled={loading}
         >
           {loading ? "Loading..." : "🔄 Refresh Groups"}
+        </button>
+        <button
+          on:click={refreshContactNames}
+          class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600 transition-colors"
+        >
+          👤 Refresh Contact Names
         </button>
       </div>
     </div>
@@ -1355,8 +1485,10 @@
     </div>
   </div>
 
-  <!-- Chat Area -->
-  <div class="flex-1 flex flex-col">
+  <!-- Chat Area (Middle) -->
+  <div
+    class="flex-1 flex flex-col border-r border-gray-200 min-w-0 bg-white shadow-sm"
+  >
     <!-- Chat Header -->
     {#if selectedContact}
       <div class="chat-header">
@@ -1373,6 +1505,26 @@
             <p class="text-sm text-gray-600">{selectedContact.phone}</p>
           </div>
           <div class="ml-auto flex items-center space-x-2">
+            <!-- Mobile toggle for right panel -->
+            <button
+              on:click={() => (showRightPanel = !showRightPanel)}
+              class="lg:hidden p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Toggle contact info"
+            >
+              <svg
+                class="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                ></path>
+              </svg>
+            </button>
             <div
               class="w-2 h-2 rounded-full {selectedContact.status === 'online'
                 ? 'bg-green-500'
@@ -1404,7 +1556,18 @@
                 : 'bg-gray-200 text-gray-800'}"
             >
               {#if message.isGroup && message.direction === "received"}
-                <div class="text-xs opacity-75 mb-1 font-medium">
+                <div
+                  class="text-xs opacity-75 mb-1 font-medium cursor-pointer hover:opacity-100 transition-opacity"
+                  on:click={() => {
+                    // Show participant details in the right panel instead of modal
+                    const participantPhone =
+                      message.fromPhone ||
+                      message.realPhoneNumber ||
+                      message.from;
+                    selectParticipant(participantPhone);
+                  }}
+                  title="Click to view contact details"
+                >
                   {message.from}
                   {#if message.fromPhone && message.fromPhone !== message.from && message.fromPhone !== "Unknown"}
                     <span class="text-xs opacity-60 ml-1"
@@ -1426,7 +1589,7 @@
                     {#if message.status === "sending"}
                       <span class="text-yellow-300">⏳</span>
                     {:else if message.status === "sent"}
-                      <span class="text-blue-300">✓</span>
+                      <span class="text-red-300">✓</span>
                     {:else if message.status === "failed"}
                       <span
                         class="text-red-300"
@@ -1473,6 +1636,356 @@
           >
             Send
           </button>
+        </div>
+      </div>
+    {/if}
+  </div>
+
+  <!-- Contact Information Panel (Right) -->
+  <div
+    class="w-80 bg-gray-50 flex-shrink-0 {showRightPanel
+      ? 'block'
+      : 'hidden'} lg:block shadow-sm h-full overflow-hidden"
+  >
+    {#if selectedContact}
+      <div class="p-6 h-full overflow-y-auto">
+        <!-- Mobile close button -->
+        <div class="lg:hidden flex justify-end mb-4">
+          <button
+            on:click={() => (showRightPanel = false)}
+            class="p-2 text-gray-500 hover:bg-gray-200 rounded-lg transition-colors"
+            title="Close panel"
+          >
+            <svg
+              class="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"
+              ></path>
+            </svg>
+          </button>
+        </div>
+
+        {#if selectedParticipant}
+          <!-- Participant Details View -->
+          <div class="mb-4">
+            <!-- Debug info -->
+            <div class="text-xs text-gray-500 mb-2">
+              Debug: selectedParticipant = {JSON.stringify(selectedParticipant)}
+            </div>
+            <button
+              on:click={backToGroup}
+              class="flex items-center text-sm text-blue-600 hover:text-blue-800 transition-colors mb-4"
+            >
+              <svg
+                class="w-4 h-4 mr-1"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M15 19l-7-7 7-7"
+                ></path>
+              </svg>
+              Back to Group
+            </button>
+          </div>
+
+          <div class="text-center mb-6">
+            <div
+              class="w-20 h-20 bg-gray-300 rounded-full flex items-center justify-center text-2xl font-medium mx-auto mb-3 text-gray-700"
+            >
+              {selectedParticipant.name.charAt(0).toUpperCase()}
+            </div>
+            <h2 class="text-xl font-bold text-gray-900 mb-1">
+              {selectedParticipant.name}
+            </h2>
+            <p class="text-sm text-gray-600 mb-2">Group Member</p>
+          </div>
+
+          <!-- Participant Details -->
+          <div class="space-y-4">
+            <div class="bg-white rounded-lg p-4">
+              <h3 class="text-sm font-semibold text-gray-900 mb-3">
+                Contact Information
+              </h3>
+              <div class="space-y-3">
+                <div>
+                  <label
+                    class="text-xs font-medium text-gray-500 uppercase tracking-wide"
+                    >Phone Number</label
+                  >
+                  <p class="text-sm text-gray-900 font-mono">
+                    {selectedParticipant.phone}
+                  </p>
+                </div>
+                <div>
+                  <label
+                    class="text-xs font-medium text-gray-500 uppercase tracking-wide"
+                    >Group</label
+                  >
+                  <p class="text-sm text-gray-900">{selectedContact.name}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="bg-white rounded-lg p-4">
+              <h3 class="text-sm font-semibold text-gray-900 mb-3">
+                Quick Actions
+              </h3>
+              <div class="space-y-2">
+                <button
+                  class="w-full px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm"
+                  on:click={() => {
+                    // Start a new chat with this participant
+                    const newContact = {
+                      id: Date.now(),
+                      name: selectedParticipant.name,
+                      phone: selectedParticipant.phone,
+                      avatar: selectedParticipant.name.charAt(0).toUpperCase(),
+                      status: "offline",
+                      lastMessage: "Start a new conversation",
+                      messageCount: 0,
+                      type: "contact",
+                    };
+                    selectContact(newContact);
+                    selectedParticipant = null;
+                  }}
+                >
+                  💬 Start Individual Chat
+                </button>
+                <button
+                  class="w-full px-3 py-2 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors text-sm"
+                  on:click={() => (showContactManagerModal = true)}
+                >
+                  📝 Edit Contact
+                </button>
+              </div>
+            </div>
+          </div>
+        {:else}
+          <!-- Group Details View -->
+          <div class="text-center mb-6">
+            <div
+              class="w-20 h-20 {selectedContact.type === 'group'
+                ? 'bg-green-300'
+                : 'bg-gray-300'} rounded-full flex items-center justify-center text-2xl font-medium mx-auto mb-3 {selectedContact.type ===
+              'group'
+                ? 'text-green-700'
+                : 'text-gray-700'}"
+            >
+              {selectedContact.avatar}
+            </div>
+            <h2 class="text-xl font-bold text-gray-900 mb-1">
+              {selectedContact.name}
+            </h2>
+            <p class="text-sm text-gray-600 mb-2">
+              {selectedContact.type === "group"
+                ? "Group Chat"
+                : "Individual Chat"}
+            </p>
+            <div class="flex items-center justify-center space-x-2">
+              <div
+                class="w-3 h-3 rounded-full {selectedContact.status === 'online'
+                  ? 'bg-green-500'
+                  : selectedContact.status === 'away'
+                    ? 'bg-yellow-500'
+                    : 'bg-gray-400'}"
+              ></div>
+              <span class="text-sm text-gray-500 capitalize"
+                >{selectedContact.status}</span
+              >
+            </div>
+          </div>
+
+          <!-- Contact Details -->
+          <div class="space-y-4">
+            <div class="bg-white rounded-lg p-4">
+              <h3 class="text-sm font-semibold text-gray-900 mb-3">
+                Contact Information
+              </h3>
+              <div class="space-y-3">
+                <div>
+                  <label
+                    class="text-xs font-medium text-gray-500 uppercase tracking-wide"
+                    >Phone Number</label
+                  >
+                  <p class="text-sm text-gray-900 font-mono">
+                    {selectedContact.phone}
+                  </p>
+                </div>
+                {#if selectedContact.type === "group"}
+                  <div>
+                    <label
+                      class="text-xs font-medium text-gray-500 uppercase tracking-wide"
+                      >Participants</label
+                    >
+                    <p class="text-sm text-gray-900">
+                      {selectedContact.participantsCount || 0} members
+                    </p>
+                  </div>
+                  {#if selectedContact.participantNames && selectedContact.participantNames.length > 0}
+                    <div>
+                      <label
+                        class="text-xs font-medium text-gray-500 uppercase tracking-wide"
+                        >Members</label
+                      >
+                      <div class="space-y-1">
+                        {#each selectedContact.participantNames.slice(0, 5) as participant, index}
+                          <div
+                            class="text-sm text-gray-700 bg-gray-50 px-2 py-1 rounded cursor-pointer hover:bg-gray-100 transition-colors flex items-center justify-between group"
+                            on:click={() => {
+                              console.log(
+                                "Participant clicked:",
+                                participant,
+                                "at index:",
+                                index,
+                              );
+                              console.log(
+                                "Selected contact participantData:",
+                                selectedContact.participantData,
+                              );
+
+                              // Get the phone number from the participantData array
+                              let phone;
+                              if (
+                                selectedContact.participantData &&
+                                selectedContact.participantData[index]
+                              ) {
+                                phone =
+                                  selectedContact.participantData[index].phone;
+                                console.log(
+                                  "Found phone from participantData:",
+                                  phone,
+                                );
+                              } else {
+                                // Fallback: try to find by name in contacts list
+                                phone = participant;
+                                console.log(
+                                  "Using participant name as fallback phone:",
+                                  phone,
+                                );
+                              }
+
+                              console.log("Final phone number:", phone);
+                              selectParticipant(phone);
+                            }}
+                            title="Click to view contact details"
+                          >
+                            <span>{participant}</span>
+                            <svg
+                              class="w-5 h-5 text-blue-500 group-hover:text-blue-600 transition-colors flex-shrink-0"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                              ></path>
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                              ></path>
+                            </svg>
+                          </div>
+                        {/each}
+                        {#if selectedContact.participantNames.length > 5}
+                          <div class="text-xs text-gray-500 text-center">
+                            +{selectedContact.participantNames.length - 5} more
+                          </div>
+                        {/if}
+                      </div>
+                    </div>
+                  {/if}
+                {/if}
+              </div>
+            </div>
+
+            <!-- Chat Statistics -->
+            <div class="bg-white rounded-lg p-4">
+              <h3 class="text-sm font-semibold text-gray-900 mb-3">
+                Chat Statistics
+              </h3>
+              <div class="grid grid-cols-2 gap-4">
+                <div class="text-center">
+                  <div class="text-2xl font-bold text-blue-600">
+                    {messages.length}
+                  </div>
+                  <div class="text-xs text-gray-500">Total Messages</div>
+                </div>
+                <div class="text-center">
+                  <div class="text-2xl font-bold text-green-600">
+                    {selectedContact.messageCount || 0}
+                  </div>
+                  <div class="text-xs text-gray-500">Conversations</div>
+                </div>
+              </div>
+              {#if selectedContact.lastMessageTime}
+                <div class="mt-3 pt-3 border-t border-gray-100">
+                  <div class="text-center">
+                    <div class="text-sm text-gray-900">
+                      Last Activity: {formatTime(
+                        selectedContact.lastMessageTime,
+                      )}
+                    </div>
+                    <div class="text-xs text-gray-500">
+                      {selectedContact.lastMessageTime.toLocaleDateString()}
+                    </div>
+                  </div>
+                </div>
+              {/if}
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="bg-white rounded-lg p-4">
+              <h3 class="text-sm font-semibold text-gray-900 mb-3">
+                Quick Actions
+              </h3>
+              <div class="space-y-2">
+                <button
+                  class="w-full px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm"
+                  on:click={() => (showContactManagerModal = true)}
+                >
+                  📝 Edit Contact
+                </button>
+                {#if selectedContact.type === "group"}
+                  <button
+                    class="w-full px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors text-sm"
+                  >
+                    👥 Manage Group
+                  </button>
+                {/if}
+                <button
+                  class="w-full px-3 py-2 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors text-sm"
+                >
+                  📊 View History
+                </button>
+              </div>
+            </div>
+          </div>
+        {/if}
+      </div>
+    {:else}
+      <div class="flex items-center justify-center h-full p-6">
+        <div class="text-center text-gray-500">
+          <div class="text-4xl mb-3">ℹ️</div>
+          <h3 class="text-lg font-medium mb-2">Contact Information</h3>
+          <p class="text-sm">Select a contact to view details</p>
         </div>
       </div>
     {/if}
@@ -1796,6 +2309,124 @@
           {editingContact ? "Update Contact" : "Add Contact"}
         </button>
       </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Contact Details Modal -->
+{#if showContactDetailsModal}
+  <div
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+  >
+    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">Contact Details</h3>
+        <button
+          on:click={() => (showContactDetailsModal = false)}
+          class="p-2 text-gray-500 hover:bg-gray-200 rounded-lg transition-colors"
+          title="Close"
+        >
+          <svg
+            class="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            ></path>
+          </svg>
+        </button>
+      </div>
+
+      {#if selectedContactForDetails}
+        <div class="space-y-4">
+          <!-- Contact Avatar and Name -->
+          <div class="text-center mb-4">
+            <div
+              class="w-16 h-16 bg-blue-300 rounded-full flex items-center justify-center text-xl font-medium mx-auto mb-3 text-blue-700"
+            >
+              {selectedContactForDetails.name.charAt(0).toUpperCase()}
+            </div>
+            <h2 class="text-lg font-bold text-gray-900 mb-1">
+              {selectedContactForDetails.name}
+            </h2>
+            <p class="text-sm text-gray-600">Contact</p>
+          </div>
+
+          <!-- Contact Information -->
+          <div class="bg-gray-50 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-900 mb-3">
+              Contact Information
+            </h3>
+            <div class="space-y-3">
+              <div>
+                <label
+                  class="text-xs font-medium text-gray-500 uppercase tracking-wide"
+                >
+                  Phone Number
+                </label>
+                <p class="text-sm text-gray-900 font-mono">
+                  {selectedContactForDetails.phone}
+                </p>
+              </div>
+              <div>
+                <label
+                  class="text-xs font-medium text-gray-500 uppercase tracking-wide"
+                >
+                  Type
+                </label>
+                <p class="text-sm text-gray-900 capitalize">
+                  {selectedContactForDetails.type}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Actions -->
+          <div class="bg-gray-50 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-900 mb-3">
+              Quick Actions
+            </h3>
+            <div class="space-y-2">
+              <button
+                class="w-full px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm"
+                on:click={() => {
+                  // Start a new chat with this contact
+                  const newContact = {
+                    id: Date.now(),
+                    name: selectedContactForDetails.name,
+                    phone: selectedContactForDetails.phone,
+                    avatar: selectedContactForDetails.name
+                      .charAt(0)
+                      .toUpperCase(),
+                    status: "offline",
+                    lastMessage: "Start a new conversation",
+                    messageCount: 0,
+                    type: "contact",
+                  };
+                  selectContact(newContact);
+                  showContactDetailsModal = false;
+                }}
+              >
+                💬 Start Individual Chat
+              </button>
+              <button
+                class="w-full px-3 py-2 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors text-sm"
+                on:click={() => {
+                  showContactDetailsModal = false;
+                  showContactManagerModal = true;
+                }}
+              >
+                📝 Manage Contacts
+              </button>
+            </div>
+          </div>
+        </div>
+      {/if}
     </div>
   </div>
 {/if}

@@ -27,13 +27,14 @@ export {};
 
 declare module "$app/types" {
 	export interface AppTypes {
-		RouteId(): "/" | "/api" | "/api/messages" | "/chat" | "/contacts" | "/database" | "/groups" | "/settings";
+		RouteId(): "/" | "/api" | "/api/contacts" | "/api/messages" | "/chat" | "/contacts" | "/database" | "/groups" | "/settings";
 		RouteParams(): {
 			
 		};
 		LayoutParams(): {
 			"/": Record<string, never>;
 			"/api": Record<string, never>;
+			"/api/contacts": Record<string, never>;
 			"/api/messages": Record<string, never>;
 			"/chat": Record<string, never>;
 			"/contacts": Record<string, never>;
@@ -41,7 +42,7 @@ declare module "$app/types" {
 			"/groups": Record<string, never>;
 			"/settings": Record<string, never>
 		};
-		Pathname(): "/" | "/api" | "/api/" | "/api/messages" | "/api/messages/" | "/chat" | "/chat/" | "/contacts" | "/contacts/" | "/database" | "/database/" | "/groups" | "/groups/" | "/settings" | "/settings/";
+		Pathname(): "/" | "/api" | "/api/" | "/api/contacts" | "/api/contacts/" | "/api/messages" | "/api/messages/" | "/chat" | "/chat/" | "/contacts" | "/contacts/" | "/database" | "/database/" | "/groups" | "/groups/" | "/settings" | "/settings/";
 		ResolvedPathname(): `${"" | `/${string}`}${ReturnType<AppTypes['Pathname']>}`;
 		Asset(): string & {};
 	}

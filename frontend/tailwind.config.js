@@ -13,7 +13,6 @@ export default {
       colors: {
         // Custom colors for chat portal
         'chat-bg': '#f8fafc',
-        'chat-sidebar': '#ffffff',
         'chat-message-user': '#3b82f6',
         'chat-message-agent': '#f1f5f9',
         'chat-border': '#e2e8f0',

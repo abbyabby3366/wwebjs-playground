@@ -3,6 +3,9 @@
 		"src/routes/+layout.ts",
 		"src/routes/+layout.ts"
 	],
+	"/api/contacts": [
+		"src/routes/api/contacts/+server.js"
+	],
 	"/api/messages": [
 		"src/routes/api/messages/+server.js"
 	],
